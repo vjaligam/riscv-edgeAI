@@ -1,0 +1,44 @@
+{
+    "input_shape": [
+        2
+    ],
+    "input_features": [
+        "age",
+        "gender"
+    ],
+    "gender_encoding": {
+        "boy": 0,
+        "girl": 1
+    },
+    "output": "height_cm",
+    "final_loss": 129.01792907714844,
+    "final_mae": 8.723661422729492,
+    "architecture": {
+        "layers": [
+            {
+                "type": "Dense",
+                "units": 64,
+                "activation": "relu"
+            },
+            {
+                "type": "Dropout",
+                "rate": 0.2
+            },
+            {
+                "type": "Dense",
+                "units": 32,
+                "activation": "relu"
+            },
+            {
+                "type": "Dense",
+                "units": 16,
+                "activation": "relu"
+            },
+            {
+                "type": "Dense",
+                "units": 1,
+                "activation": "linear"
+            }
+        ]
+    }
+}
