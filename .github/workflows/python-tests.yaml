@@ -1,0 +1,107 @@
+name: riscv-edgeAI CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify Python syntax
+        run: |
+          python -m compileall .
+
+      - name: Validate height prediction logic
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, ".")
+          from children_age import get_height_prediction
+
+          checks = {
+              (5, "boy"): 110.0,
+              (10, "girl"): 138.0,
+              (15, "boy"): 170.0,
+              (12, "boy"): 149.0,
+          }
+
+          for (age, gender), expected in checks.items():
+              actual = get_height_prediction(age, gender)
+              print(f"Age={age}, gender={gender}, predicted={actual}, expected={expected}")
+              assert abs(actual - expected) < 1e-6, f"Mismatch: {actual} != {expected}"
+          print("Height prediction checks passed.")
+          PY
+
+      - name: Validate required model files exist
+        run: |
+          test -f height_model.keras
+          test -f height_model.tflite
+          test -f height_model_quantized.tflite
+          test -f scaler.pkl
+          echo "All required model artifacts are present."
+
+      - name: Validate TFLite model loads
+        run: |
+          python - <<'PY'
+          import tensorflow as tf
+
+          interpreter = tf.lite.Interpreter(model_path="height_model_quantized.tflite")
+          interpreter.allocate_tensors()
+          print("Input tensors:", len(interpreter.get_input_details()))
+          print("Output tensors:", len(interpreter.get_output_details()))
+          print("TFLite model loaded successfully.")
+          PY
+
+      - name: Upload model artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: model-artifacts-${{ matrix.python-version }}
+          path: |
+            height_model.keras
+            height_model.tflite
+            height_model_quantized.tflite
+            scaler.pkl
+          retention-days: 7
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install lint tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+
+      - name: Run flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
